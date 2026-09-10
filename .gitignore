@@ -1,6 +1,7 @@
 __pycache__/
 checkpoints/
 checkpoints_ft/
+checkpoints_ft.bak_*/
 results/
 logs/
 *.pt

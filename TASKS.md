@@ -27,9 +27,19 @@ Status key: `[x]` done · `[~]` in progress · `[ ]` todo · `[?]` decision need
       **test QWK 0.702**, acc 0.820, referable-DR sens 0.68 / spec 0.95.
       `checkpoints/best.pt`, `logs/train_20260910_072836.log`, `results/confusion_matrix_test.png`.
 - [x] `requirements.lock.txt` written (`pip freeze`).
-- [ ] **`--no-freeze` rerun** — frozen backbone plateaus at QWK 0.70 (grade-1 recall 0.08).
-      `python train.py --data augmented_resized_V2 --epochs 20 --batch-size 8 --workers 8 --no-freeze --out checkpoints_ft`
-      Needs user go-ahead (GPU task). ~5-6 h estimated.
+- [x] git repo (project-local `.git`, own remote) + GitHub `LSaiko/Reti-dia-grad` (private).
+      NOTE: stray `.git` at `C:\Users\Admin\` is unrelated — recommend `rm -rf ~/.git`.
+- [x] `--no-freeze` at single lr 3e-4 (batch 8): killed at epoch 6. Also plateaued QWK ~0.70
+      (0.701/0.696/0.699/0.684/0.693) — 3e-4 too hot for pretrained backbone.
+- [x] train.py: added `--backbone-lr` (discriminative LR, 2 param groups). committed 6b26079.
+- [ ] **Discriminative-LR rerun — QUEUED, awaiting user command (they're gaming, GPU busy):**
+      ```
+      rm -rf checkpoints_ft
+      python train.py --data augmented_resized_V2 --epochs 15 --batch-size 16 --workers 8 \
+        --no-freeze --lr 3e-4 --backbone-lr 3e-5 --out checkpoints_ft
+      ```
+      then: `python evaluate.py --split test --ckpt checkpoints_ft/best.pt`
+      ~2.5 h. NordVPN Threat Protection must be OFF for the run.
 
 ## 1. Data pipeline
 
