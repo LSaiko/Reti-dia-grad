@@ -1,0 +1,9 @@
+torch
+torchvision
+timm
+albumentations
+opencv-python-headless
+scikit-learn
+matplotlib
+numpy
+pillow
