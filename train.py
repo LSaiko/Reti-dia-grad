@@ -60,7 +60,9 @@ def main():
     ap.add_argument("--data", default="augmented_resized_V2", help="root with train/ val/ subdirs")
     ap.add_argument("--epochs", type=int, default=20)
     ap.add_argument("--batch-size", type=int, default=16)
-    ap.add_argument("--lr", type=float, default=3e-4)
+    ap.add_argument("--lr", type=float, default=3e-4, help="head LR")
+    ap.add_argument("--backbone-lr", type=float, default=None,
+                    help="separate (lower) LR for backbone params; default = --lr")
     ap.add_argument("--img-size", type=int, default=IMG_SIZE)
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--seed", type=int, default=42)
@@ -81,9 +83,16 @@ def main():
 
     model = build_model(num_classes=5, freeze=not args.no_freeze).to(device)
     criterion = nn.CrossEntropyLoss(weight=class_weights(train_ds).to(device))
-    optimizer = torch.optim.AdamW(
-        [p for p in model.parameters() if p.requires_grad], lr=args.lr)
+
+    bb_lr = args.backbone_lr if args.backbone_lr is not None else args.lr
+    head = [p for n, p in model.named_parameters() if p.requires_grad and "classifier" in n]
+    backbone = [p for n, p in model.named_parameters() if p.requires_grad and "classifier" not in n]
+    optimizer = torch.optim.AdamW([
+        {"params": backbone, "lr": bb_lr},
+        {"params": head, "lr": args.lr},
+    ])
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
+    print(f"optimizer: backbone lr {bb_lr:.1e} ({len(backbone)} tensors), head lr {args.lr:.1e} ({len(head)} tensors)")
     amp = device == "cuda" and not args.no_amp
     scaler = torch.amp.GradScaler("cuda", enabled=amp)
 
@@ -120,7 +129,7 @@ def main():
         train_secs = time.time() - t0
         qwk, acc, cm, report = evaluate(model, val_ld, device, amp)
         print(f"epoch {epoch}/{args.epochs}: train_loss {running / len(train_ld):.4f}  "
-              f"lr {scheduler.get_last_lr()[0]:.2e}  "
+              f"lr {'/'.join(f'{x:.1e}' for x in scheduler.get_last_lr())}  "
               f"train {train_secs:.0f}s ({len(train_ld) * train_ld.batch_size / train_secs:.0f} img/s)  "
               f"val_acc {acc:.4f}  val_QWK {qwk:.4f}", flush=True)
         print_eval(cm, report)
