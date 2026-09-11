@@ -137,6 +137,43 @@ agreement, prospective or independent test data, subgroup performance analysis,
 human-factors evaluation, and a full risk-management file (ISO 14971). None of
 that is included here.
 
+## Limitations
+
+- **Merged, not curated, dataset.** Training data is APTOS 2019 combined with
+  EyePACS, not a single source with one labeling protocol. The two sets were
+  graded independently and were captured on different camera hardware and
+  patient populations; merging them is a domain-shift risk that hasn't been
+  measured or corrected for.
+- **No external validation set.** Every number in the Results table comes from
+  a held-out split of the *same* merged APTOS+EyePACS pool (de-leaked at the
+  source-image level, see Dataset above). None of it is an independent dataset
+  or a different clinic/camera population — the standard bar for a
+  generalization claim in DR grading.
+- **No subgroup analysis.** Performance has not been broken out by camera
+  type, patient demographics, or image quality. The reported metrics are
+  pooled averages and could mask large disparities across subgroups.
+- **Grade 1 (Mild DR) is the model's weak point.** Baseline per-class F1 is
+  0.09 for grade 1 vs. 0.60–0.91 for the other grades, with grade-1 recall
+  0.08 — most Mild-DR eyes are predicted as grade 0 (see Results). The
+  grade 0/1 boundary is a known-hard case in DR grading generally (subtle
+  microaneurysms, high inter-rater disagreement in the literature), but the
+  magnitude here is a specific weakness of this model, not just an inherent
+  floor.
+- **Nonstandard split methodology.** `train` contains multiple offline-augmented
+  copies per source image, and `data.py` de-leaks val/test against `train` and
+  restricts them to original (un-augmented) images to keep metrics honest (see
+  Dataset → Split integrity). This mitigates the main risk of augmented
+  duplicates leaking across splits, but it's still a different, less-standard
+  setup than a benchmark curated from the start with clean, fixed splits.
+- **Not a cleared or approved medical device** — see the disclaimer at the top
+  of this README and the "None of that is included here" caveat in Regulatory
+  context above.
+- **Single-model, single-run results.** No ensembling and no repeated-seed
+  variance estimate. The reported QWK and other point estimates come from one
+  training run each (baseline complete; a full fine-tune with discriminative
+  learning rates was in progress at time of writing) and should be read as
+  single samples, not stable means.
+
 ## Usage
 
 ```bash
