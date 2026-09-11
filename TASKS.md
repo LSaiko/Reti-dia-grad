@@ -32,7 +32,11 @@ Status key: `[x]` done · `[~]` in progress · `[ ]` todo · `[?]` decision need
 - [x] `--no-freeze` at single lr 3e-4 (batch 8): killed at epoch 6. Also plateaued QWK ~0.70
       (0.701/0.696/0.699/0.684/0.693) — 3e-4 too hot for pretrained backbone.
 - [x] train.py: added `--backbone-lr` (discriminative LR, 2 param groups). committed 6b26079.
-- [ ] **Discriminative-LR rerun — QUEUED, awaiting user command (they're gaming, GPU busy):**
+- [x] README Limitations section (delegated to sub-agent, e583494).
+- [~] **Discriminative-LR rerun — running** (`logs/finetune_20260911_001703.log`).
+      run_training.ps1 had two PS 5.1 bugs found+fixed while launching: an em-dash broke the
+      unBOM'd file's parse (non-ASCII in .ps1), and `$ErrorActionPreference="Stop"` turned a
+      harmless HF-Hub stderr warning into a script-killing error. Both fixed (d1ac056, 0689fd0).
       ```
       rm -rf checkpoints_ft
       python train.py --data augmented_resized_V2 --epochs 15 --batch-size 16 --workers 8 \
