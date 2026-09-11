@@ -116,6 +116,17 @@ vignetting, JPEG blocking, or laser photocoagulation scars from prior treatment.
 A model that grades correctly for the wrong reason will not generalize to a new
 camera or clinic.
 
+**Caveat on resolution.** `conv_head` outputs a 10×10 spatial map at 300×300
+input, so every heatmap is a handful of coarse, blocky regions upsampled 30×
+rather than lesion-tight localization. On manual review of sample overlays
+across all five grades, heat is often concentrated near the fundus border
+rather than clearly on vessels or lesions. That may be genuine
+border/vignetting sensitivity, or may just be an artifact of using the very
+last (lowest-resolution) conv layer — a higher-resolution target layer (an
+earlier block) or a higher input resolution would be needed to tell the
+difference and to get clinically legible localization. As-is, these heatmaps
+support only a coarse sanity check, not fine-grained lesion attribution.
+
 ## Regulatory context (informational)
 
 For software in a medical device, FDA design controls under **21 CFR Part 820.30**
@@ -143,6 +154,11 @@ that is included here.
 
 ## Limitations
 
+- **Grad-CAM heatmaps are coarse (10×10 upsampled 30×) and, on manual review,
+  often concentrate near the fundus border rather than clearly on vessels or
+  lesions.** See the caveat under Explainability. This weakens the
+  interpretability claim the Regulatory context section makes — as-is, the
+  heatmaps are a sanity check, not lesion-level evidence.
 - **Merged, not curated, dataset.** Training data is APTOS 2019 combined with
   EyePACS, not a single source with one labeling protocol. The two sets were
   graded independently and were captured on different camera hardware and
