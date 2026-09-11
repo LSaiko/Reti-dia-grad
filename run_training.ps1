@@ -19,7 +19,7 @@ if (-not $Resume -and (Test-Path "checkpoints_ft")) {
 Write-Host "logging to $log  (resume=$Resume)"
 
 $trainArgs = @("-u", "train.py", "--data", "augmented_resized_V2", "--epochs", "15",
-    "--batch-size", "16", "--workers", "8", "--no-freeze", "--lr", "3e-4",
+    "--batch-size", "16", "--workers", "6", "--no-freeze", "--lr", "3e-4",
     "--backbone-lr", "3e-5", "--out", "checkpoints_ft")
 if ($Resume) { $trainArgs += @("--resume", "auto") }
 # empty "" args get silently dropped when PowerShell marshals argv to a native exe, which

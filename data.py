@@ -84,11 +84,17 @@ def make_loaders(root, img_size=IMG_SIZE, batch_size=16, workers=8, deleak=True)
     train_ids = {base_id(p) for p, _ in train_ds.samples} if deleak else None
     val_ds = AlbFolder(root / "val", transform=build_transforms(img_size, train=False),
                        originals_only=True, exclude_base_ids=train_ids)
-    kw = dict(num_workers=workers, pin_memory=True,
-              persistent_workers=workers > 0,  # Windows spawn: don't re-import torch per epoch
-              prefetch_factor=4 if workers > 0 else None)
-    train_ld = DataLoader(train_ds, batch_size=batch_size, shuffle=True, drop_last=True, **kw)
-    val_ld = DataLoader(val_ds, batch_size=batch_size, shuffle=False, **kw)
+    train_ld = DataLoader(train_ds, batch_size=batch_size, shuffle=True, drop_last=True,
+                          num_workers=workers, pin_memory=True,
+                          persistent_workers=workers > 0,  # Windows spawn: don't re-import torch per epoch
+                          prefetch_factor=4 if workers > 0 else None)
+    # val runs once/epoch and is much smaller than train - a second full set of `workers`
+    # persistent processes here (each re-importing torch/cv2/albumentations) was pushing this
+    # machine (16 GB RAM) into MemoryError. Cap it small and don't persist.
+    val_workers = min(workers, 2)
+    val_ld = DataLoader(val_ds, batch_size=batch_size, shuffle=False,
+                        num_workers=val_workers, pin_memory=True, persistent_workers=False,
+                        prefetch_factor=2 if val_workers > 0 else None)
     return train_ds, val_ds, train_ld, val_ld
 
 
