@@ -33,17 +33,21 @@ Status key: `[x]` done · `[~]` in progress · `[ ]` todo · `[?]` decision need
       (0.701/0.696/0.699/0.684/0.693) — 3e-4 too hot for pretrained backbone.
 - [x] train.py: added `--backbone-lr` (discriminative LR, 2 param groups). committed 6b26079.
 - [x] README Limitations section (delegated to sub-agent, e583494).
-- [~] **Discriminative-LR rerun — running** (`logs/finetune_20260911_001703.log`).
-      run_training.ps1 had two PS 5.1 bugs found+fixed while launching: an em-dash broke the
-      unBOM'd file's parse (non-ASCII in .ps1), and `$ErrorActionPreference="Stop"` turned a
-      harmless HF-Hub stderr warning into a script-killing error. Both fixed (d1ac056, 0689fd0).
-      ```
-      rm -rf checkpoints_ft
-      python train.py --data augmented_resized_V2 --epochs 15 --batch-size 16 --workers 8 \
-        --no-freeze --lr 3e-4 --backbone-lr 3e-5 --out checkpoints_ft
-      ```
-      then: `python evaluate.py --split test --ckpt checkpoints_ft/best.pt`
-      ~2.5 h. NordVPN Threat Protection must be OFF for the run.
+- [x] **Discriminative-LR run — DONE.** Took 4 launch attempts, 3 real bugs found+fixed along
+      the way: an em-dash broke the unBOM'd .ps1's parse; `$ErrorActionPreference="Stop"` turned
+      a harmless HF-Hub stderr warning into a script-killing error; both loaders sharing
+      `--workers` gave 16 persistent worker processes (8 train + 8 val) → `MemoryError` in a
+      worker mid-run, main process hung ~15.5h with zero epochs done before I caught it and
+      killed it. Fixed: val workers capped to 2, non-persistent (a53e0b5). Final successful run:
+      15 epochs, 542s/epoch (213 img/s), `logs/finetune_20260911_155432.log`.
+      **Result: best val QWK 0.7173 (epoch 5), test QWK 0.7234, acc 0.8401, referable-DR
+      sens 0.698 / spec 0.954.** Improved over baseline (0.702) but grade-1 (Mild) recall
+      *dropped* 0.08→0.03 — fine-tuning didn't fix the hard class, it made it worse. Below the
+      0.80 target. `checkpoints_ft/best.pt`, `results/confusion_matrix_test.png`.
+- [ ] **Decide next step on QWK 0.80 target** (needs user input — see report):
+      (a) accept 0.723 as final, document as-is; (b) targeted grade-1 fix — class weight bump,
+      focal loss, or oversample grade-1 in the train split; (c) ordinal-regression head;
+      (d) TTA at inference. None free — all need a GPU run to evaluate.
 
 ## 1. Data pipeline
 

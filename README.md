@@ -13,23 +13,27 @@ expectations, not a claim of compliance.
 
 Held-out test split (8,741 de-leaked original images), EfficientNet-B3.
 
-| Metric | Frozen backbone (baseline) | Full fine-tune |
+| Metric | Frozen backbone (baseline) | Full fine-tune (discriminative LR) |
 |---|---|---|
-| Quadratic Weighted Kappa (QWK) | **0.702** | _pending_ |
-| Accuracy | 0.820 | _pending_ |
-| Referable-DR (grade ≥ 2) sensitivity | 0.68 | _pending_ |
-| Referable-DR (grade ≥ 2) specificity | 0.95 | _pending_ |
+| Quadratic Weighted Kappa (QWK) | 0.702 | **0.723** |
+| Accuracy | 0.820 | 0.840 |
+| Referable-DR (grade ≥ 2) sensitivity | 0.68 | 0.698 |
+| Referable-DR (grade ≥ 2) specificity | 0.95 | 0.954 |
 
-Per-class F1 (baseline): 0 No-DR 0.91 · 1 Mild 0.09 · 2 Moderate 0.60 ·
-3 Severe 0.31 · 4 Proliferative 0.67. Confusion matrix:
+Per-class F1 (fine-tuned): 0 No-DR 0.92 · 1 Mild 0.04 · 2 Moderate 0.62 ·
+3 Severe 0.28 · 4 Proliferative 0.69. Confusion matrix:
 `results/confusion_matrix_test.png`.
 
 QWK (quadratic-weighted Cohen's kappa) is the standard DR-grading metric — it
 penalizes errors by how far off the grade is. The **baseline** trains only the
-last two EfficientNet stages + head (20 epochs, cosine LR); it plateaus at
-QWK ≈ 0.70 because the frozen ImageNet features can't resolve Mild DR (grade 1
-recall 0.08 — most grade-1 eyes are called grade 0). Unfreezing the backbone is
-the next step (`--no-freeze`).
+last two EfficientNet stages + head; frozen ImageNet features plateau at
+QWK ≈ 0.70. Unfreezing the whole backbone with a **discriminative learning
+rate** (`--no-freeze --lr 3e-4 --backbone-lr 3e-5`, 15 epochs) improved QWK,
+accuracy, and referable-DR sensitivity — but **made grade-1 (Mild DR) worse**,
+not better: recall dropped from 0.08 to 0.03 (only ~10 of 398 mild-DR eyes
+correctly identified). The extra capacity appears to have gone toward the
+majority/moderate classes rather than resolving the subtle grade-0/grade-1
+boundary; see Limitations.
 
 ## Dataset
 
@@ -152,13 +156,17 @@ that is included here.
 - **No subgroup analysis.** Performance has not been broken out by camera
   type, patient demographics, or image quality. The reported metrics are
   pooled averages and could mask large disparities across subgroups.
-- **Grade 1 (Mild DR) is the model's weak point.** Baseline per-class F1 is
-  0.09 for grade 1 vs. 0.60–0.91 for the other grades, with grade-1 recall
-  0.08 — most Mild-DR eyes are predicted as grade 0 (see Results). The
-  grade 0/1 boundary is a known-hard case in DR grading generally (subtle
-  microaneurysms, high inter-rater disagreement in the literature), but the
-  magnitude here is a specific weakness of this model, not just an inherent
-  floor.
+- **Grade 1 (Mild DR) is the model's weak point, and it did not improve with
+  more training capacity.** Per-class F1 for grade 1 is 0.09 (baseline,
+  frozen backbone) and 0.04 (fine-tuned, full backbone) vs. 0.60–0.92 for
+  every other grade; fine-tuning actually dropped grade-1 recall from 0.08 to
+  0.03 — see Results. The grade 0/1 boundary is a known-hard case in DR
+  grading generally (subtle microaneurysms, high inter-rater disagreement in
+  the literature), but that a full-backbone fine-tune made it *worse* points
+  to something more specific: likely label noise at this boundary in the
+  merged dataset, or the class-weighted loss and per-class support (only 399
+  val / 398 test grade-1 images) not being enough to counter how visually
+  similar grade 0/1 are. Not resolved in this project.
 - **Nonstandard split methodology.** `train` contains multiple offline-augmented
   copies per source image, and `data.py` de-leaks val/test against `train` and
   restricts them to original (un-augmented) images to keep metrics honest (see
