@@ -22,4 +22,4 @@ python -u train.py --data augmented_resized_V2 --epochs 15 --batch-size 16 --wor
 if ($LASTEXITCODE -eq 0) {
     python -u evaluate.py --data augmented_resized_V2 --split test --ckpt checkpoints_ft\best.pt 2>&1 | Tee-Object -Append $log
 }
-Write-Host "done — see $log, checkpoints_ft\best.pt, results\confusion_matrix_test.png"
+Write-Host "done - see $log, checkpoints_ft\best.pt, results\confusion_matrix_test.png"
