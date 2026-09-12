@@ -119,11 +119,11 @@ Seeded, AMP (mixed precision), AdamW, cosine LR schedule over the epoch budget.
 val-QWK improvement; re-run with `--resume auto` to continue an interrupted run.
 
 ### Explainability — Grad-CAM
-`gradcam.py` implements Grad-CAM from scratch: forward/backward hooks on the
-last convolutional layer (`model.conv_head`), gradients global-average-pooled
-into channel weights, weighted activation sum passed through ReLU, upsampled and
-normalized to a `[0,1]` heatmap. `overlay_gradcam()` blends a jet colormap over
-the original photo; `batch_overlay()` processes a folder into `results/`.
+`gradcam.py` implements Grad-CAM from scratch: forward/backward hooks on a
+target conv layer, gradients global-average-pooled into channel weights,
+weighted activation sum passed through ReLU, upsampled and normalized to a
+`[0,1]` heatmap. `overlay_gradcam()` blends a jet colormap over the original
+photo; `batch_overlay()` processes a folder into `results/`.
 
 The intended use of the heatmaps is **interpretability review**: confirming that
 predictions are driven by retinal features (microaneurysms, hemorrhages,
@@ -132,23 +132,39 @@ vignetting, JPEG blocking, or laser photocoagulation scars from prior treatment.
 A model that grades correctly for the wrong reason will not generalize to a new
 camera or clinic.
 
-**Caveat on resolution.** `conv_head` outputs a 10×10 spatial map at 300×300
-input, so every heatmap is a handful of coarse, blocky regions upsampled 30×
-rather than lesion-tight localization. On manual review of sample overlays
-across all five grades, heat is often concentrated near the fundus border
-rather than clearly on vessels or lesions. That may be genuine
-border/vignetting sensitivity, or may just be an artifact of using the very
-last (lowest-resolution) conv layer — a higher-resolution target layer (an
-earlier block) or a higher input resolution would be needed to tell the
-difference and to get clinically legible localization. As-is, these heatmaps
-support only a coarse sanity check, not fine-grained lesion attribution.
+**Target layer: resolution investigation.** The natural default —
+`model.conv_head`, the very last conv layer — is only 10×10 at 300×300 input,
+so its heatmaps are a handful of coarse blocky regions upsampled 30×. On first
+manual review (baseline choice, all five grades) heat was often concentrated
+near the fundus border rather than clearly on vessels or lesions, which would
+undercut the whole interpretability argument if it reflected the model's real
+attention. To check, the same 10 sample images were re-run with the target
+layer moved to `model.blocks[4]` — 19×19, ~3.6× the cells, one stage earlier
+so slightly less class-specific but far less lossy when upsampled. The
+difference was immediate and consistent: `conv_head` produces 3-4 giant blobs
+that tend to hug the image edge; `blocks[4]` resolves into many small,
+discrete hotspots that land on the optic disc, vessel arcades, and scattered
+lesion-like points — visibly more clinically plausible, at the same compute
+cost. **`model.py`'s `target_layer()` now defaults to `blocks[4]`**;
+`target_layer_coarse()` keeps the old `conv_head` for comparison.
 
-One sample per grade (fine-tuned model, test split) — note the border-heat
-pattern discussed above on all five:
+| | `conv_head` (10×10, old default) | `blocks[4]` (19×19, current default) |
+|---|---|---|
+| Grade 0 | ![coarse](docs/img/gradcam_grade0.png) | ![fine](docs/img/gradcam_grade0_fine.png) |
+| Grade 2 | ![coarse](docs/img/gradcam_grade2.png) | ![fine](docs/img/gradcam_grade2_fine.png) |
+| Grade 3 | ![coarse](docs/img/gradcam_grade3.png) | ![fine](docs/img/gradcam_grade3_fine.png) |
+| Grade 4 | ![coarse](docs/img/gradcam_grade4.png) | ![fine](docs/img/gradcam_grade4_fine.png) |
 
-| Grade 0 | Grade 1 | Grade 2 | Grade 3 | Grade 4 |
-|---|---|---|---|---|
-| ![Grade 0](docs/img/gradcam_grade0.png) | ![Grade 1](docs/img/gradcam_grade1.png) | ![Grade 2](docs/img/gradcam_grade2.png) | ![Grade 3](docs/img/gradcam_grade3.png) | ![Grade 4](docs/img/gradcam_grade4.png) |
+Some heat still bleeds into the black corners outside the circular fundus
+field in the `blocks[4]` overlays — consistent with the known CNN zero-padding
+border artifact (elevated activations right at a conv layer's spatial edge,
+independent of image content), not the model treating vignetting as pathology.
+That artifact is a separate, lower-stakes issue from the original
+border-concentration finding, which the resolution swap substantially
+resolved. This was a genuine, if informal, investigation on 10 images across
+5 grades with 1 checkpoint — not a systematic study — but the direction and
+size of the effect were consistent enough to change the default rather than
+just note the finding.
 
 ## Regulatory context (informational)
 
@@ -177,11 +193,13 @@ that is included here.
 
 ## Limitations
 
-- **Grad-CAM heatmaps are coarse (10×10 upsampled 30×) and, on manual review,
-  often concentrate near the fundus border rather than clearly on vessels or
-  lesions.** See the caveat under Explainability. This weakens the
-  interpretability claim the Regulatory context section makes — as-is, the
-  heatmaps are a sanity check, not lesion-level evidence.
+- **Grad-CAM heatmaps are a 10-image, 5-grade, 1-checkpoint informal review, not
+  a systematic study.** Moving the target layer from `conv_head` to `blocks[4]`
+  (see Explainability) fixed the initial border-concentration finding on that
+  sample, but a residual conv-padding edge artifact remains, and localization
+  still isn't lesion-tight even at 19×19. This is a sanity check that the
+  model roughly attends to the right structures, not lesion-level evidence for
+  a regulatory submission.
 - **Merged, not curated, dataset.** Training data is APTOS 2019 combined with
   EyePACS, not a single source with one labeling protocol. The two sets were
   graded independently and were captured on different camera hardware and
@@ -220,10 +238,75 @@ that is included here.
   of this README and the "None of that is included here" caveat in Regulatory
   context above.
 - **Single-model, single-run results.** No ensembling and no repeated-seed
-  variance estimate. The reported QWK and other point estimates come from one
-  training run each (baseline complete; a full fine-tune with discriminative
-  learning rates was in progress at time of writing) and should be read as
-  single samples, not stable means.
+  variance estimate. Each reported QWK and other point estimate comes from one
+  training run and should be read as a single sample, not a stable mean.
+
+## Conclusion
+
+Three EfficientNet-B3 configurations were trained and evaluated on a common,
+de-leaked test split: a frozen-backbone baseline, a full fine-tune, and the
+fine-tune with grade-1's loss weight manually boosted. None reaches the 0.80
+QWK target set at the start of this project. What emerged instead is a
+concrete, measured trade-off: the unboosted fine-tune has the best aggregate
+QWK (0.723) but is nearly blind to Mild DR (recall 0.03); the boosted version
+gives up 0.013 QWK to make Mild DR detectable (recall 0.111, still far from
+good). That grade-1 performance moves in opposite directions between "more
+capacity" and "more targeted weight" — rather than both helping — points to
+label noise or genuine visual ambiguity at the grade 0/1 boundary in this
+merged dataset, not just an undertrained model. The project's default model
+(`checkpoints_grade1fix/best.pt`) is the boosted one, chosen because a
+screening tool blind to the mildest disease stage is a worse failure mode
+than a few points of aggregate accuracy — but that is a stated judgment call,
+not a solved problem, and `checkpoints_ft/best.pt` remains available for
+whoever weighs it differently. The Grad-CAM investigation (below and in
+Explainability) found and partially corrected a real methodological issue —
+the original target layer's heatmaps were dominated by coarse, border-hugging
+blobs — which is itself a useful result: the interpretability evidence this
+kind of project relies on has its own failure modes and needs the same
+skepticism as the accuracy numbers.
+
+## Future work
+
+Ranked by expected payoff per unit of additional effort, not by ambition:
+
+1. **Ensemble the three existing checkpoints — no new training required.**
+   Average the softmax outputs of `checkpoints/best.pt`, `checkpoints_ft/best.pt`,
+   and `checkpoints_grade1fix/best.pt` (a straightforward addition to
+   `predict.py`/`evaluate.py`: load all three, mean the probability vectors
+   before `argmax`). Since the fine-tune and the boosted model make
+   *different* mistakes — one favors aggregate QWK, the other favors grade-1 —
+   averaging them is a well-established way to recover some of both without
+   touching the grade-1/QWK trade-off's root cause. This is the one item here
+   that could plausibly help "for free" and should be tried first.
+2. **Temperature scaling** for calibrated confidence (already noted in
+   Evaluation) — cheap, a few lines, doesn't touch accuracy.
+3. **Focal loss in place of manual class-weight boosting.** The boost here was
+   a blunt instrument (multiply one class's weight by a hand-picked constant).
+   Focal loss down-weights *easy* examples adaptively regardless of class,
+   which is a more principled way to force attention onto hard cases like the
+   grade 0/1 boundary, and is a drop-in change to `train.py`'s criterion.
+4. **A finer-grained or domain-pretrained backbone.** ImageNet pretraining is
+   a mismatch for fundus photos; a backbone with self-supervised or
+   supervised pretraining on retinal images (several public checkpoints
+   exist for DR specifically) would likely lift every number here without
+   architecture changes. Worth trying before assuming the ceiling is the
+   dataset.
+5. **An auxiliary lesion-segmentation head**, trained jointly if a
+   pixel-annotated dataset (IDRiD, DDR) is brought in alongside APTOS+EyePACS.
+   This is the one change here that could improve both classification *and*
+   Grad-CAM quality directly, since it forces the backbone to represent
+   lesions explicitly rather than hoping classification pressure alone
+   produces lesion-aligned features — but it's real scope: a new dataset, a
+   new loss term, and multi-task training.
+6. **Independent external validation** on a held-out clinical population or
+   camera type not represented in APTOS/EyePACS — the only way to know if any
+   of these numbers generalize past this specific merged dataset. Needed
+   before any of this is more than a portfolio exercise.
+7. **Ordinal-regression head (CORAL / cumulative-logits)** in place of
+   5-way softmax — theoretically better suited to graded severity, but the
+   grade-1 experiments here suggest the bottleneck is label quality at one
+   specific boundary, not the loss framing, so this is ranked last: revisit
+   only if 1-3 are tried and grade-1 is still the blocker.
 
 ## Usage
 

@@ -4,6 +4,12 @@
 held-out split, Grad-CAM explainability, single-image `predict.py`, and a README that
 frames the work in regulatory-validation terms.
 
+**STUDY WRAPPED UP.** The 0.80 QWK target was not reached (best: 0.723, unboosted
+fine-tune); a documented trade-off exists between that and grade-1 detection instead
+(0.710 QWK / 0.112 grade-1 F1, the boosted model, now the default). See README
+Conclusion + Future Work for the final writeup and ranked next steps. This file is now a
+project history / reference, not an active plan.
+
 Status key: `[x]` done · `[~]` in progress · `[ ]` todo · `[?]` decision needed
 
 ---
@@ -180,12 +186,21 @@ when done — it's a real security feature, just incompatible with this dataload
       (grade-1 recall 0.03) is a worse default than one that trades a little QWK to actually
       see it (recall 0.111). `--ckpt checkpoints_ft/best.pt` still available for the other one.
 
-Remaining, no particular priority — all optional polish/stretch at this point:
-1. **[investigation, light GPU]** Grad-CAM border finding — retarget `GradCAM` at an earlier,
-   higher-resolution block and re-review; settle whether the border concentration in the
-   heatmaps is real model behavior or a resolution artifact.
-2. **[stretch, needs a GPU run]** Ordinal-regression head, focal loss, or oversampling —
-   only worth it with a specific hypothesis for why it'd beat the current trade-off rather
-   than just move it elsewhere.
-3. **[stretch]** EyePACS-only external validation, TTA, ONNX export — portfolio polish, not
-   required for the core deliverable.
+- [x] **Grad-CAM border finding — investigated and fixed.** Re-ran the same 10 sample images
+      (grade1fix checkpoint) with the target layer moved from `conv_head` (10x10) to
+      `blocks[4]` (19x19, ~3.6x the cells). Consistent, visible improvement: coarse blobs that
+      hugged the image edge became many small hotspots landing on the optic disc, vessel
+      arcades, and scattered lesion-like points. **Changed `model.py`'s `target_layer()`
+      default to `blocks[4]`**; old behavior kept as `target_layer_coarse()`. A residual
+      conv-padding edge artifact remains (heat bleeding past the fundus circle into the black
+      background) — a separate, lower-stakes issue, documented in README. Before/after images
+      in `docs/img/`, full writeup in README Explainability + Conclusion.
+- [x] **Study wrapped up.** README got a Conclusion section (what was actually learned) and a
+      ranked Future Work / addendum section — top pick is ensembling the 3 existing
+      checkpoints (no new training, directly targets the documented trade-off), down through
+      focal loss, domain pretraining, lesion-segmentation auxiliary task, external validation,
+      and ordinal regression (ranked last — the grade-1 experiments here point to a label-
+      quality problem, not a loss-framing problem).
+
+Nothing left blocking. Any further work is genuinely optional and is listed, ranked, in
+README's Future Work section rather than here.
