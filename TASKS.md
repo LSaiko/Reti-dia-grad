@@ -61,7 +61,7 @@ Status key: `[x]` done · `[~]` in progress · `[ ]` todo · `[?]` decision need
       train, and restricts val to un-augmented `-600` originals.
 - [x] Real counts recorded: train 115,241 (0:55k 1:18k 2:24k 3:8k 4:9k) ·
       val 8,730 de-leaked originals (6715/399/1333/91/192) · class weights [.42,1.25,.95,2.90,2.43]
-- [x] Dataset is NOT APTOS-3662 — it's merged APTOS + EyePACS (~90k source images). README must be fixed.
+- [x] Dataset is NOT APTOS-3662 — it's merged APTOS + EyePACS (~90k source images). README fixed.
 - [?] Circular-crop / retina-border removal preprocessing — images vary a lot in framing.
       Decide add (helps) vs skip (simpler). Default: skip for v1.
 - [?] Move CLAHE offline (precompute) if it shows up as a CPU bottleneck (calibration will tell)
@@ -85,8 +85,9 @@ Status key: `[x]` done · `[~]` in progress · `[ ]` todo · `[?]` decision need
 - [x] Seed everything (random, numpy, torch, cuda); cudnn.benchmark on
 - [x] `last.pt` every epoch (model+opt+sched+scaler+epoch) + `--resume auto` for interrupted runs
 - [x] `run_training.ps1` — one-shot train → test-eval, logs to `logs/`
-- [~] Full training run (20 epochs) — RUNNING (pid 1633), epoch 1 = calibration
-- [~] Early stopping / patience — skipped; cosine + fixed 20 epochs + resumable is enough for v1
+- [x] Discriminative LR (`--backbone-lr`) — see section 0. Two full runs done: frozen baseline
+      (QWK 0.702) and full fine-tune (QWK 0.723). Both checked in.
+- [x] Early stopping / patience — skipped; cosine + fixed epoch budget + resumable was enough
 
 ## 4. Evaluation & metrics
 
@@ -95,7 +96,7 @@ Status key: `[x]` done · `[~]` in progress · `[ ]` todo · `[?]` decision need
 - [x] `evaluate.py`: load a checkpoint, run test/val, print QWK + CM + per-class report
 - [x] Save confusion matrix PNG (`results/confusion_matrix_<split>.png`)
 - [x] Referable-DR (grade ≥ 2) sensitivity/specificity in `evaluate.py`
-- [ ] Run `evaluate.py --split test` after training, paste numbers into README
+- [x] Ran `evaluate.py --split test` for both models, numbers are in README (f7fe7c3)
 - [?] Temperature scaling for confidence calibration (README mentions it) — small
       post-hoc step on the val split; add if `predict.py` confidences look over-confident
 
@@ -105,26 +106,32 @@ Status key: `[x]` done · `[~]` in progress · `[ ]` todo · `[?]` decision need
 - [x] `overlay_gradcam(image_path, model, gradcam, class_idx)` → jet-blended overlay
 - [x] `batch_overlay(folder, ...)` → writes `results/`
 - [x] Self-check (`test_gradcam.py`) on the CAM math
-- [ ] Run `batch_overlay` on a sample of real fundus images once a checkpoint exists
-- [ ] Hand-review ~20 overlays: is the model attending to lesions (hemorrhages,
-      microaneurysms, exudates, neovascularization) vs. artifacts (border, flare, JPEG blocks)?
-- [ ] Put 3–4 representative overlays (one per non-zero grade) in the README
+- [x] Ran `batch_overlay` on 10 test images (2/grade) with the fine-tuned model
+- [x] Hand-reviewed the samples: **finding** — `conv_head` is 10×10 at 300px input, heatmaps
+      are coarse 30×-upsampled blobs, and heat often sits near the fundus border rather than on
+      vessels/lesions. Documented as an open caveat (6d547e3) — could be genuine border
+      sensitivity or just the coarse resolution, not distinguished.
+- [ ] **Not done: put actual overlay images in the README** (sent to user via chat, not
+      committed/embedded — a private GitHub repo can embed images via `results/*.png` links,
+      or upload to an `docs/img/` folder and reference by relative path)
+- [ ] Follow-up on the border finding: try a shallower target layer (e.g. next-to-last block,
+      higher spatial res) and re-review whether the border concentration persists
 
 ## 6. Inference deliverable
 
 - [x] `predict.py`: single image → grade + confidence + per-class probs + heatmap PNG
-- [ ] End-to-end test `predict.py` against `best.pt` on a held-out image
-- [ ] Handle the no-checkpoint / bad-path cases with a clear error message
+- [x] End-to-end tested against `checkpoints_ft/best.pt` — correct grade, 0.972 confidence
+- [ ] Handle the no-checkpoint / bad-path cases with a clear error message (currently a raw traceback)
 - [?] Tiny CLI batch mode (`predict.py folder/`) — only if it's actually wanted
 
 ## 7. Documentation & regulatory framing
 
 - [x] README rewritten: real dataset (APTOS+EyePACS), de-leak + originals-only split method,
-      MotW/Windows repro note, training details, results table set to "pending"
-- [ ] Fill in the **real** QWK / accuracy / per-class / referable-DR numbers after training
-- [ ] Add the confusion-matrix PNG and Grad-CAM example images
-- [ ] Add a LIMITATIONS section: merged dataset, no external validation, no subgroup
-      analysis, offline-augmentation caveat, not a cleared device
+      MotW/Windows repro note, training details, results table filled in for both models
+- [x] Limitations section (7 points incl. grade-1 weakness and the Grad-CAM border finding)
+- [ ] Embed the confusion-matrix PNG and 2-3 Grad-CAM examples in the README itself (files
+      exist in `results/`, just not referenced as `![...]()` markdown images yet)
+- [ ] Add architecture/pipeline diagram (optional, portfolio polish)
 
 ## 8. Stretch (only if time / interest)
 
@@ -135,11 +142,35 @@ Status key: `[x]` done · `[~]` in progress · `[ ]` todo · `[?]` decision need
 
 ---
 
-## Suggested order
+## Where things stand (post hardware upgrade)
 
-1. Finish infra (0): unblock completes → calibration → lock the plan
-2. Data integrity (1.4 split-leakage check) — **do this before any full run**, it decides
-   whether the numbers mean anything
-3. Full training run (3) + test-set eval (4)
-4. Grad-CAM review on real images (5) + inference test (6)
-5. Backfill README with real numbers and images (7)
+Two full training runs done, both committed: frozen baseline (test QWK 0.702) and full
+fine-tune with discriminative LR (test QWK 0.723). Neither hits the 0.80 target — the
+blocker is grade-1 (Mild DR), which got *worse* after fine-tuning (recall 0.08→0.03).
+Everything else in the pipeline (data, eval, Grad-CAM, inference, docs) is functional and
+checked in. **Machine specs changed:** RAM 15→31 GB (the val-worker OOM fix is now moot but
+stays as a correctness improvement); GPU unchanged (RTX 5060, 8 GB). **NordVPN Threat
+Protection is back on** — must be off again before any training run.
+
+## Next tasks, in recommended order
+
+1. **[infra] Turn NordVPN Threat Protection off** before any training — one-time toggle,
+   needed before task 2 or 5 can run at a usable speed.
+2. **[modeling, needs a GPU run] Targeted grade-1 fix** — this is the one thing actually
+   blocking the 0.80 goal. Cheapest first: push grade-1's class weight higher than the
+   "balanced" formula gives it (it's already the rarest-ish class but still gets
+   out-voted), or switch to focal loss. ~2-3 hours with the new RAM headroom.
+3. **[polish, no GPU] Embed results in README** — `results/confusion_matrix_test.png` and
+   2-3 Grad-CAM overlays as inline `![]()` images instead of just files on disk. Quick.
+4. **[polish, no GPU] `predict.py` error handling** — friendly message instead of a raw
+   traceback for a missing checkpoint or bad image path.
+5. **[investigation, light GPU] Grad-CAM border finding** — retarget `GradCAM` at an
+   earlier, higher-resolution block and re-review the same 10 sample images; settle whether
+   the border concentration is real model behavior or a resolution artifact.
+6. **[stretch, needs a GPU run] Ordinal-regression head** — only worth it if #2 doesn't move
+   grade-1; softmax + class weighting may just be the wrong tool for this specific boundary.
+7. **[stretch] EyePACS-only external validation, TTA, ONNX export** — nice-to-haves for a
+   more complete portfolio story, not required for the core deliverable.
+
+Items 3 and 4 need no approval and no GPU — good candidates to knock out anytime. 2, 5, and
+6 need a training run each (2 is the one actually worth spending GPU time on).
