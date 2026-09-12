@@ -9,6 +9,15 @@ and has not been cleared or approved by any regulatory body. The regulatory
 notes below describe how the technical artifacts map to design-control
 expectations, not a claim of compliance.
 
+**License:** the code in this repository is [MIT licensed](LICENSE). That
+does not extend to the training data — APTOS 2019 and EyePACS are each under
+their own Kaggle competition terms — or to the ImageNet-pretrained weights
+pulled via `timm`, which keep their original license.
+
+**Landing page:** [lsaiko.github.io/Reti-dia-grad](https://lsaiko.github.io/Reti-dia-grad/) —
+sample fundus photos next to their Grad-CAM overlays, one per grade, plus the
+results table below.
+
 ## Results
 
 Held-out test split (8,741 de-leaked original images), EfficientNet-B3.
