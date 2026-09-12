@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reti-dia-grad — Diabetic Retinopathy Grading</title>
+<meta name="description" content="EfficientNet-B3 diabetic retinopathy grading with Grad-CAM explainability, trained on merged APTOS+EyePACS fundus photos.">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,500;0,600;0,700;1,500&family=Work+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+:root{
+  --bg:#f5f2ec; --surface:#ffffff; --surface-2:#ece7db; --ink:#221815; --muted:#6f6259;
+  --line:#e3ddd0; --accent:#8c2f2b; --accent-soft:#f1ded8; --accent-2:#35625f; --accent-2-soft:#dee9e6;
+  --shadow:0 1px 2px rgba(34,24,21,.06), 0 14px 34px -18px rgba(34,24,21,.28);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#14100d; --surface:#1e1815; --surface-2:#271f1a; --ink:#ece5da; --muted:#a3968a;
+    --line:#362c25; --accent:#d97a70; --accent-soft:#3a2320; --accent-2:#6db3ac; --accent-2-soft:#1c2e2b;
+    --shadow:0 1px 2px rgba(0,0,0,.5), 0 18px 40px -18px rgba(0,0,0,.6);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#14100d; --surface:#1e1815; --surface-2:#271f1a; --ink:#ece5da; --muted:#a3968a;
+  --line:#362c25; --accent:#d97a70; --accent-soft:#3a2320; --accent-2:#6db3ac; --accent-2-soft:#1c2e2b;
+  --shadow:0 1px 2px rgba(0,0,0,.5), 0 18px 40px -18px rgba(0,0,0,.6);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Work Sans",system-ui,sans-serif;
+  line-height:1.55;-webkit-font-smoothing:antialiased}
+.serif{font-family:"Source Serif 4",Georgia,serif}
+.mono{font-family:"JetBrains Mono",ui-monospace,monospace}
+img{max-width:100%;display:block}
+a{color:var(--accent)}
+.wrap{max-width:1080px;margin:0 auto;padding:0 24px}
+
+/* ---------- hero ---------- */
+header.hero{padding:64px 0 40px;border-bottom:1px solid var(--line)}
+.eyebrow{font-family:"JetBrains Mono",monospace;font-size:12px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--accent);font-weight:600}
+h1{font-size:clamp(32px,5vw,50px);margin:10px 0 0;font-weight:700;text-wrap:balance;letter-spacing:-.01em;
+  line-height:1.08}
+.dek{font-size:17px;color:var(--muted);max-width:62ch;margin-top:16px}
+.dek em{color:var(--ink);font-style:italic}
+.hero-links{display:flex;gap:10px;margin-top:24px;flex-wrap:wrap}
+.btn{font-family:"JetBrains Mono",monospace;font-size:12.5px;font-weight:500;letter-spacing:.02em;
+  padding:9px 16px;border-radius:8px;border:1px solid var(--line);background:var(--surface);
+  color:var(--ink);text-decoration:none;display:inline-flex;align-items:center;gap:7px;
+  box-shadow:var(--shadow);transition:transform .12s ease}
+.btn:hover{transform:translateY(-1px)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fbf3f1}
+
+.stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);
+  border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-top:36px;box-shadow:var(--shadow)}
+.stat{background:var(--surface);padding:16px 18px}
+.stat .k{font-family:"JetBrains Mono",monospace;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--muted)}
+.stat .v{font-family:"JetBrains Mono",monospace;font-size:24px;font-weight:600;margin-top:4px;
+  font-variant-numeric:tabular-nums}
+.stat .v small{font-size:13px;color:var(--muted);font-weight:400}
+
+/* ---------- section shell ---------- */
+section{padding:52px 0}
+section + section{border-top:1px solid var(--line)}
+.section-head{margin-bottom:8px}
+.section-head .eyebrow{display:block;margin-bottom:6px}
+h2{font-size:26px;margin:0;font-weight:700;letter-spacing:-.01em}
+.section-note{color:var(--muted);font-size:14.5px;max-width:68ch;margin-top:10px}
+
+/* ---------- gallery ---------- */
+.grade-row{display:grid;grid-template-columns:1.1fr 1.1fr 1.4fr;gap:22px;align-items:center;
+  padding:22px 0;border-top:1px solid var(--line)}
+.grade-row:first-of-type{border-top:none}
+figure{margin:0}
+figure img{border-radius:10px;border:1px solid var(--line);box-shadow:var(--shadow);width:100%;aspect-ratio:1;object-fit:cover}
+figcaption{font-family:"JetBrains Mono",monospace;font-size:10.5px;color:var(--muted);margin-top:7px;
+  letter-spacing:.03em;text-transform:uppercase}
+.grade-info{display:flex;flex-direction:column;gap:8px}
+.grade-badge{display:inline-flex;align-items:center;gap:8px;width:fit-content}
+.grade-num{font-family:"JetBrains Mono",monospace;font-weight:700;font-size:13px;color:var(--accent);
+  border:1.5px solid var(--accent);border-radius:50%;width:24px;height:24px;display:inline-flex;
+  align-items:center;justify-content:center;flex:none}
+.grade-name{font-family:"Source Serif 4",serif;font-weight:600;font-size:19px}
+.grade-desc{color:var(--muted);font-size:14px;max-width:42ch}
+.recall-pill{font-family:"JetBrains Mono",monospace;font-size:11.5px;padding:4px 10px;border-radius:99px;
+  background:var(--accent-2-soft);color:var(--accent-2);width:fit-content;font-weight:600}
+.recall-pill.is-weak{background:var(--accent-soft);color:var(--accent)}
+
+/* ---------- results table ---------- */
+.tbl-wrap{overflow-x:auto;margin-top:20px;border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}
+table{width:100%;border-collapse:collapse;background:var(--surface);font-size:14px;min-width:560px}
+th,td{padding:11px 16px;text-align:left;border-bottom:1px solid var(--line)}
+th{font-family:"JetBrains Mono",monospace;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--muted);font-weight:600;background:var(--surface-2)}
+td.num{font-family:"JetBrains Mono",monospace;font-variant-numeric:tabular-nums}
+tr:last-child td{border-bottom:none}
+.pick{color:var(--accent);font-weight:600}
+.tbl-foot{font-size:13px;color:var(--muted);margin-top:12px;max-width:70ch}
+
+/* ---------- footer ---------- */
+footer{padding:36px 0 56px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:14px;
+  font-size:12.5px;color:var(--muted);font-family:"JetBrains Mono",monospace}
+footer a{color:var(--muted);text-decoration:underline;text-underline-offset:2px}
+
+@media (max-width: 760px){
+  .stat-row{grid-template-columns:repeat(2,1fr)}
+  .grade-row{grid-template-columns:1fr 1fr;grid-template-areas:"img1 img2" "info info"}
+  .grade-row figure:nth-child(1){grid-area:img1}
+  .grade-row figure:nth-child(2){grid-area:img2}
+  .grade-info{grid-area:info}
+}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="hero">
+    <span class="eyebrow">Reti-dia-grad &middot; portfolio project</span>
+    <h1>Grading diabetic retinopathy,<br>and showing its work</h1>
+    <p class="dek">An EfficientNet-B3 classifier trained on 90,000+ fundus photographs to
+      grade diabetic retinopathy on the standard 0&ndash;4 clinical scale, with
+      <em>Grad-CAM</em> heatmaps for every prediction — because a model that grades
+      correctly for the wrong reason won't generalize to a new camera or clinic.</p>
+    <div class="hero-links">
+      <a class="btn primary" href="https://github.com/LSaiko/Reti-dia-grad">&#8599; View source</a>
+      <a class="btn" href="https://github.com/LSaiko/Reti-dia-grad#readme">Read the full writeup</a>
+      <a class="btn" href="https://github.com/LSaiko/Reti-dia-grad/blob/main/LICENSE">MIT licensed</a>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat"><div class="k">Best test QWK</div><div class="v">0.723</div></div>
+      <div class="stat"><div class="k">Training images</div><div class="v">115k<small>+</small></div></div>
+      <div class="stat"><div class="k">Grades</div><div class="v">5<small> classes</small></div></div>
+      <div class="stat"><div class="k">Source data</div><div class="v mono" style="font-size:15px">APTOS+EyePACS</div></div>
+    </div>
+  </header>
+
+  <section id="gallery">
+    <div class="section-head">
+      <span class="eyebrow">Sample &amp; Grad-CAM</span>
+      <h2>Five grades, and where the model looks</h2>
+    </div>
+    <p class="section-note">One held-out test image per grade, alongside its Grad-CAM
+      overlay from the deployed model (<code class="mono">checkpoints_grade1fix/best.pt</code>,
+      target layer <code class="mono">blocks[4]</code>, 19&times;19 resolution). Recall shown
+      is this model's per-class recall on the full test set, not just this one image.</p>
+
+    <div class="grade-row">
+      <figure><img src="img/original_grade0.jpg" alt="Fundus photo, grade 0, no diabetic retinopathy" loading="lazy"><figcaption>Original</figcaption></figure>
+      <figure><img src="img/gradcam_grade0_fine.png" alt="Grad-CAM overlay, grade 0" loading="lazy"><figcaption>Grad-CAM</figcaption></figure>
+      <div class="grade-info">
+        <div class="grade-badge"><span class="grade-num">0</span><span class="grade-name">No DR</span></div>
+        <p class="grade-desc">No visible retinopathy. The model's easiest class by a wide margin — it dominates the training set.</p>
+        <span class="recall-pill">recall 0.92</span>
+      </div>
+    </div>
+
+    <div class="grade-row">
+      <figure><img src="img/original_grade1.jpg" alt="Fundus photo, grade 1, mild diabetic retinopathy" loading="lazy"><figcaption>Original</figcaption></figure>
+      <figure><img src="img/gradcam_grade1_fine.png" alt="Grad-CAM overlay, grade 1" loading="lazy"><figcaption>Grad-CAM</figcaption></figure>
+      <div class="grade-info">
+        <div class="grade-badge"><span class="grade-num">1</span><span class="grade-name">Mild</span></div>
+        <p class="grade-desc">Microaneurysms only. The hardest boundary in this study — see the writeup for why.</p>
+        <span class="recall-pill is-weak">recall 0.11</span>
+      </div>
+    </div>
+
+    <div class="grade-row">
+      <figure><img src="img/original_grade2.jpg" alt="Fundus photo, grade 2, moderate diabetic retinopathy" loading="lazy"><figcaption>Original</figcaption></figure>
+      <figure><img src="img/gradcam_grade2_fine.png" alt="Grad-CAM overlay, grade 2" loading="lazy"><figcaption>Grad-CAM</figcaption></figure>
+      <div class="grade-info">
+        <div class="grade-badge"><span class="grade-num">2</span><span class="grade-name">Moderate</span></div>
+        <p class="grade-desc">More extensive microaneurysms and hemorrhages than mild disease.</p>
+        <span class="recall-pill">recall 0.59</span>
+      </div>
+    </div>
+
+    <div class="grade-row">
+      <figure><img src="img/original_grade3.jpg" alt="Fundus photo, grade 3, severe diabetic retinopathy" loading="lazy"><figcaption>Original</figcaption></figure>
+      <figure><img src="img/gradcam_grade3_fine.png" alt="Grad-CAM overlay, grade 3" loading="lazy"><figcaption>Grad-CAM</figcaption></figure>
+      <div class="grade-info">
+        <div class="grade-badge"><span class="grade-num">3</span><span class="grade-name">Severe</span></div>
+        <p class="grade-desc">Widespread hemorrhages and venous beading. The rarest class in this dataset (94 test images).</p>
+        <span class="recall-pill is-weak">recall 0.14</span>
+      </div>
+    </div>
+
+    <div class="grade-row">
+      <figure><img src="img/original_grade4.jpg" alt="Fundus photo, grade 4, proliferative diabetic retinopathy" loading="lazy"><figcaption>Original</figcaption></figure>
+      <figure><img src="img/gradcam_grade4_fine.png" alt="Grad-CAM overlay, grade 4" loading="lazy"><figcaption>Grad-CAM</figcaption></figure>
+      <div class="grade-info">
+        <div class="grade-badge"><span class="grade-num">4</span><span class="grade-name">Proliferative</span></div>
+        <p class="grade-desc">Neovascularization — abnormal new blood vessel growth. Sight-threatening if untreated.</p>
+        <span class="recall-pill">recall 0.67</span>
+      </div>
+    </div>
+  </section>
+
+  <section id="results">
+    <div class="section-head">
+      <span class="eyebrow">Three models, one trade-off</span>
+      <h2>Results on the held-out test split</h2>
+    </div>
+    <p class="section-note">8,741 de-leaked original images (no source photo shared between
+      train and test). None of the three reaches the 0.80 QWK target set at the start of this
+      project — see the README's Conclusion for what that means.</p>
+
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>Metric</th><th>Frozen backbone</th><th>Full fine-tune</th><th>+ grade-1 boost <span class="pick">(deployed)</span></th></tr></thead>
+        <tbody>
+          <tr><td>Quadratic Weighted Kappa</td><td class="num">0.702</td><td class="num">0.723</td><td class="num pick">0.710</td></tr>
+          <tr><td>Accuracy</td><td class="num">0.820</td><td class="num">0.840</td><td class="num">0.821</td></tr>
+          <tr><td>Grade-1 (Mild) recall</td><td class="num">0.08</td><td class="num">0.03</td><td class="num pick">0.111</td></tr>
+          <tr><td>Referable-DR (&ge;grade 2) sensitivity</td><td class="num">0.68</td><td class="num">0.698</td><td class="num">0.674</td></tr>
+          <tr><td>Referable-DR specificity</td><td class="num">0.95</td><td class="num">0.954</td><td class="num pick">0.960</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="tbl-foot">The deployed model trades 0.013 QWK for the ability to detect Mild DR
+      at all — the unboosted fine-tune's grade-1 recall of 0.03 means it misses nearly every
+      early-stage case. Full numbers, confusion matrices, and the class-weight-boost mechanism
+      are in the <a href="https://github.com/LSaiko/Reti-dia-grad#results">README</a>.</p>
+  </section>
+
+  <footer>
+    <span>Research / portfolio project &mdash; not a medical device, not cleared or approved by any regulatory body.</span>
+    <span><a href="https://github.com/LSaiko/Reti-dia-grad">github.com/LSaiko/Reti-dia-grad</a></span>
+  </footer>
+</div>
+
+</body>
+</html>
