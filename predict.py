@@ -1,5 +1,6 @@
 """Grade a single fundus image: prints grade + confidence, writes a Grad-CAM heatmap PNG."""
 import argparse
+import sys
 from pathlib import Path
 
 import cv2
@@ -13,10 +14,23 @@ from model import build_model, target_layer
 GRADE_NAMES = ["No DR", "Mild", "Moderate", "Severe", "Proliferative"]
 
 
+class PredictError(Exception):
+    """A known, expected failure - printed as a one-line message, no traceback."""
+
+
 def load_model(ckpt_path, device):
+    ckpt_path = Path(ckpt_path)
+    if not ckpt_path.exists():
+        raise PredictError(
+            f"checkpoint not found: {ckpt_path}\n"
+            f"  train one first (python train.py) or pass --ckpt <path>")
     ckpt = torch.load(ckpt_path, map_location=device)
     model = build_model(num_classes=5, pretrained=False, freeze=False)
-    model.load_state_dict(ckpt["model"])
+    try:
+        model.load_state_dict(ckpt["model"])
+    except (KeyError, RuntimeError) as e:
+        raise PredictError(f"checkpoint at {ckpt_path} doesn't match this model "
+                           f"(architecture mismatch or not a train.py checkpoint): {e}")
     model.to(device).eval()
     return model, ckpt.get("img_size", IMG_SIZE)
 
@@ -28,10 +42,16 @@ def main():
     ap.add_argument("--out", help="heatmap PNG path (default: <image>_gradcam.png)")
     args = ap.parse_args()
 
+    if not Path(args.image).exists():
+        raise PredictError(f"image not found: {args.image}")
+
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model, img_size = load_model(args.ckpt, device)
 
-    rgb = cv2.cvtColor(cv2.imread(args.image), cv2.COLOR_BGR2RGB)
+    bgr = cv2.imread(args.image)
+    if bgr is None:
+        raise PredictError(f"could not read image (corrupt file or unsupported format): {args.image}")
+    rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
     from data import preprocess
     with torch.no_grad():
         probs = F.softmax(model(preprocess(rgb, img_size).to(device)), dim=1)[0].cpu()
@@ -50,4 +70,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except PredictError as e:
+        print(f"error: {e}", file=sys.stderr)
+        sys.exit(1)

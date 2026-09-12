@@ -21,8 +21,9 @@ Held-out test split (8,741 de-leaked original images), EfficientNet-B3.
 | Referable-DR (grade ≥ 2) specificity | 0.95 | 0.954 |
 
 Per-class F1 (fine-tuned): 0 No-DR 0.92 · 1 Mild 0.04 · 2 Moderate 0.62 ·
-3 Severe 0.28 · 4 Proliferative 0.69. Confusion matrix:
-`results/confusion_matrix_test.png`.
+3 Severe 0.28 · 4 Proliferative 0.69.
+
+![Confusion matrix, fine-tuned model, test split](docs/img/confusion_matrix_test.png)
 
 QWK (quadratic-weighted Cohen's kappa) is the standard DR-grading metric — it
 penalizes errors by how far off the grade is. The **baseline** trains only the
@@ -126,6 +127,13 @@ last (lowest-resolution) conv layer — a higher-resolution target layer (an
 earlier block) or a higher input resolution would be needed to tell the
 difference and to get clinically legible localization. As-is, these heatmaps
 support only a coarse sanity check, not fine-grained lesion attribution.
+
+One sample per grade (fine-tuned model, test split) — note the border-heat
+pattern discussed above on all five:
+
+| Grade 0 | Grade 1 | Grade 2 | Grade 3 | Grade 4 |
+|---|---|---|---|---|
+| ![Grade 0](docs/img/gradcam_grade0.png) | ![Grade 1](docs/img/gradcam_grade1.png) | ![Grade 2](docs/img/gradcam_grade2.png) | ![Grade 3](docs/img/gradcam_grade3.png) | ![Grade 4](docs/img/gradcam_grade4.png) |
 
 ## Regulatory context (informational)
 
