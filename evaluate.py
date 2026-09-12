@@ -11,6 +11,7 @@ from sklearn.metrics import cohen_kappa_score, confusion_matrix
 
 from data import IMG_SIZE, make_eval_loader
 from model import build_model
+from predict import DEFAULT_CKPT
 from train import GRADE_NAMES, print_eval, evaluate as _evaluate
 
 
@@ -36,7 +37,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--data", default="augmented_resized_V2")
     ap.add_argument("--split", default="test", choices=["test", "val"])
-    ap.add_argument("--ckpt", default="checkpoints/best.pt")
+    ap.add_argument("--ckpt", default=DEFAULT_CKPT)
     ap.add_argument("--workers", type=int, default=8)
     args = ap.parse_args()
 

@@ -13,6 +13,12 @@ from model import build_model, target_layer
 
 GRADE_NAMES = ["No DR", "Mild", "Moderate", "Severe", "Proliferative"]
 
+# Three trained checkpoints exist (see README Results); this one is the default because a
+# screening tool that can't see Mild DR at all (the unboosted fine-tune: grade-1 recall 0.03)
+# is more dangerous than one with slightly lower overall QWK. checkpoints_ft/best.pt has the
+# higher QWK (0.723 vs 0.710) if that's what a given use case actually wants instead.
+DEFAULT_CKPT = "checkpoints_grade1fix/best.pt"
+
 
 class PredictError(Exception):
     """A known, expected failure - printed as a one-line message, no traceback."""
@@ -38,7 +44,7 @@ def load_model(ckpt_path, device):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("image")
-    ap.add_argument("--ckpt", default="checkpoints/best.pt")
+    ap.add_argument("--ckpt", default=DEFAULT_CKPT)
     ap.add_argument("--out", help="heatmap PNG path (default: <image>_gradcam.png)")
     args = ap.parse_args()
 

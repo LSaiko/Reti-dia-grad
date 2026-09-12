@@ -230,19 +230,25 @@ that is included here.
 ```bash
 pip install -r requirements.txt
 
-# full run: train 20 epochs, then evaluate best.pt on the test split (resumable)
+# full run: fine-tune + grade-1 class-weight boost, then evaluate on the test split (resumable)
 powershell -ExecutionPolicy Bypass -File run_training.ps1
 
 # or directly
 python train.py --data augmented_resized_V2 --epochs 20 --batch-size 16 [--resume auto]
-python evaluate.py --split test --ckpt checkpoints/best.pt
+python evaluate.py --split test   # defaults to checkpoints_grade1fix/best.pt, see below
 
 # grade one image: prints grade + confidence, writes <image>_gradcam.png
-python predict.py path/to/fundus.jpg --ckpt checkpoints/best.pt
+python predict.py path/to/fundus.jpg   # same default checkpoint
 
 # self-check on the Grad-CAM math (no dataset needed)
 python test_gradcam.py
 ```
+
+`predict.py` and `evaluate.py` default to **`checkpoints_grade1fix/best.pt`** (`DEFAULT_CKPT`
+in `predict.py`) — the grade-1-boosted model, not the higher-QWK unboosted fine-tune. A
+screening tool that's nearly blind to Mild DR (the unboosted model's grade-1 recall is 0.03)
+is a worse default than one with slightly lower overall QWK; see Results. Pass
+`--ckpt checkpoints_ft/best.pt` for the higher-QWK model instead.
 
 ## Files
 

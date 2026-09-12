@@ -174,15 +174,18 @@ when done — it's a real security feature, just incompatible with this dataload
 - [x] ~~`predict.py` error handling~~ — clean one-line errors, tested (0699019)
 - [x] ~~Targeted grade-1 fix~~ — class-weight boost, done, see section 0 (result: 0.710 QWK / 0.112 grade-1 F1)
 
+- [x] **Picked the default model: `checkpoints_grade1fix/best.pt`** (`DEFAULT_CKPT` in
+      `predict.py`, imported into `evaluate.py` too). Chose it over the higher-QWK unboosted
+      fine-tune (0.723 vs 0.710) because a screening tool that's nearly blind to Mild DR
+      (grade-1 recall 0.03) is a worse default than one that trades a little QWK to actually
+      see it (recall 0.111). `--ckpt checkpoints_ft/best.pt` still available for the other one.
+
 Remaining, no particular priority — all optional polish/stretch at this point:
-1. **[decision, no GPU]** Pick which of the 3 checkpoints is "the" deliverable model (or
-   present all 3 transparently, which is what the README currently does) — a product/scope
-   call, not a technical one.
-2. **[investigation, light GPU]** Grad-CAM border finding — retarget `GradCAM` at an earlier,
+1. **[investigation, light GPU]** Grad-CAM border finding — retarget `GradCAM` at an earlier,
    higher-resolution block and re-review; settle whether the border concentration in the
    heatmaps is real model behavior or a resolution artifact.
-3. **[stretch, needs a GPU run]** Ordinal-regression head, focal loss, or oversampling —
+2. **[stretch, needs a GPU run]** Ordinal-regression head, focal loss, or oversampling —
    only worth it with a specific hypothesis for why it'd beat the current trade-off rather
    than just move it elsewhere.
-4. **[stretch]** EyePACS-only external validation, TTA, ONNX export — portfolio polish, not
+3. **[stretch]** EyePACS-only external validation, TTA, ONNX export — portfolio polish, not
    required for the core deliverable.
