@@ -44,10 +44,21 @@ Status key: `[x]` done · `[~]` in progress · `[ ]` todo · `[?]` decision need
       sens 0.698 / spec 0.954.** Improved over baseline (0.702) but grade-1 (Mild) recall
       *dropped* 0.08→0.03 — fine-tuning didn't fix the hard class, it made it worse. Below the
       0.80 target. `checkpoints_ft/best.pt`, `results/confusion_matrix_test.png`.
-- [ ] **Decide next step on QWK 0.80 target** (needs user input — see report):
-      (a) accept 0.723 as final, document as-is; (b) targeted grade-1 fix — class weight bump,
-      focal loss, or oversample grade-1 in the train split; (c) ordinal-regression head;
-      (d) TTA at inference. None free — all need a GPU run to evaluate.
+- [x] **Targeted grade-1 fix — DONE.** `--boost-class 1 --boost-factor 4.0` (class weight
+      0.42→4.99, highest of all 5), same discriminative-LR config, 15 epochs,
+      `checkpoints_grade1fix/best.pt`, `logs/grade1fix_20260911_205609.log`.
+      **Result: test QWK 0.7097, acc 0.8211, grade-1 F1 0.04→0.112 (nearly 3x the unboosted
+      fine-tune, beats baseline's 0.09 too), referable-DR sens 0.674 / spec 0.960.**
+      Real fix on the target metric, at a real cost: -0.013 QWK and -0.024 sensitivity vs. the
+      unboosted fine-tune. Unstable early (epoch-1 val QWK cratered to 0.52, grade-1 recall
+      spiked to 0.64 then settled to ~0.10-0.15 by epoch 5+) before reaching a stable trade-off.
+      Live-monitored via a published Artifact dashboard (progress bar, per-epoch QWK chart vs.
+      reference lines, per-class F1) updated after each epoch during the run.
+      **Still below the 0.80 target — three models now exist, none reaching it: baseline
+      (0.702, weak grade-1), unboosted fine-tune (0.723, worst grade-1), boosted fine-tune
+      (0.710, best grade-1). No further free action — remaining options (focal loss,
+      oversampling, ordinal head, TTA) all need another GPU run and don't have an obvious
+      reason to beat this trade-off rather than just move it.**
 
 ## 1. Data pipeline
 
@@ -143,33 +154,35 @@ Status key: `[x]` done · `[~]` in progress · `[ ]` todo · `[?]` decision need
 
 ---
 
-## Where things stand (post hardware upgrade)
+## Where things stand
 
-Two full training runs done, both committed: frozen baseline (test QWK 0.702) and full
-fine-tune with discriminative LR (test QWK 0.723). Neither hits the 0.80 target — the
-blocker is grade-1 (Mild DR), which got *worse* after fine-tuning (recall 0.08→0.03).
-Everything else in the pipeline (data, eval, Grad-CAM, inference, docs) is functional and
-checked in. **Machine specs changed:** RAM 15→31 GB (the val-worker OOM fix is now moot but
-stays as a correctness improvement); GPU unchanged (RTX 5060, 8 GB). **NordVPN Threat
-Protection is back on** — must be off again before any training run.
+Three full training runs done, all committed: frozen baseline (test QWK 0.702, grade-1 F1
+0.09), full fine-tune (0.723, grade-1 F1 0.04 — capacity alone made grade-1 worse), and
+fine-tune + 4x grade-1 class-weight boost (0.710, grade-1 F1 0.112 — best on the target
+metric, costs 0.013 QWK vs. the unboosted fine-tune). None reaches the 0.80 target. This is
+now a real trade-off between three models, not a single number to chase further without a
+reason to think the next lever (focal loss, oversampling, ordinal head) would do better than
+just relocate the same trade-off. Everything else in the pipeline (data, eval, Grad-CAM,
+inference, docs) is functional and checked in. Live-monitored the boost run via a published
+Artifact dashboard (progress bar + per-epoch chart + per-class F1, updated each epoch).
+**NordVPN Threat Protection must be off before any future training run** (toggle it back on
+when done — it's a real security feature, just incompatible with this dataloader).
 
-## Next tasks, in recommended order
+## Next tasks
 
 - [x] ~~Embed results in README~~ — confusion matrix + per-grade Grad-CAM gallery, `docs/img/` (0699019)
 - [x] ~~`predict.py` error handling~~ — clean one-line errors, tested (0699019)
+- [x] ~~Targeted grade-1 fix~~ — class-weight boost, done, see section 0 (result: 0.710 QWK / 0.112 grade-1 F1)
 
-1. **[infra] Turn NordVPN Threat Protection off** before any training — one-time toggle,
-   needed before task 2 or 3 can run at a usable speed.
-2. **[modeling, needs a GPU run] Targeted grade-1 fix** — this is the one thing actually
-   blocking the 0.80 goal. Cheapest first: push grade-1's class weight higher than the
-   "balanced" formula gives it (it's already the rarest-ish class but still gets
-   out-voted), or switch to focal loss. ~2-3 hours with the new RAM headroom.
-3. **[investigation, light GPU] Grad-CAM border finding** — retarget `GradCAM` at an
-   earlier, higher-resolution block and re-review the same 10 sample images; settle whether
-   the border concentration is real model behavior or a resolution artifact.
-4. **[stretch, needs a GPU run] Ordinal-regression head** — only worth it if #2 doesn't move
-   grade-1; softmax + class weighting may just be the wrong tool for this specific boundary.
-5. **[stretch] EyePACS-only external validation, TTA, ONNX export** — nice-to-haves for a
-   more complete portfolio story, not required for the core deliverable.
-
-Everything left needs a GPU run (2 is the one actually worth spending it on).
+Remaining, no particular priority — all optional polish/stretch at this point:
+1. **[decision, no GPU]** Pick which of the 3 checkpoints is "the" deliverable model (or
+   present all 3 transparently, which is what the README currently does) — a product/scope
+   call, not a technical one.
+2. **[investigation, light GPU]** Grad-CAM border finding — retarget `GradCAM` at an earlier,
+   higher-resolution block and re-review; settle whether the border concentration in the
+   heatmaps is real model behavior or a resolution artifact.
+3. **[stretch, needs a GPU run]** Ordinal-regression head, focal loss, or oversampling —
+   only worth it with a specific hypothesis for why it'd beat the current trade-off rather
+   than just move it elsewhere.
+4. **[stretch]** EyePACS-only external validation, TTA, ONNX export — portfolio polish, not
+   required for the core deliverable.

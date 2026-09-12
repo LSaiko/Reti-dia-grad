@@ -13,17 +13,20 @@ expectations, not a claim of compliance.
 
 Held-out test split (8,741 de-leaked original images), EfficientNet-B3.
 
-| Metric | Frozen backbone (baseline) | Full fine-tune (discriminative LR) |
-|---|---|---|
-| Quadratic Weighted Kappa (QWK) | 0.702 | **0.723** |
-| Accuracy | 0.820 | 0.840 |
-| Referable-DR (grade ≥ 2) sensitivity | 0.68 | 0.698 |
-| Referable-DR (grade ≥ 2) specificity | 0.95 | 0.954 |
+| Metric | Frozen backbone (baseline) | Full fine-tune (discriminative LR) | + grade-1 class-weight boost |
+|---|---|---|---|
+| Quadratic Weighted Kappa (QWK) | 0.702 | **0.723** | 0.710 |
+| Accuracy | 0.820 | 0.840 | 0.821 |
+| Referable-DR (grade ≥ 2) sensitivity | 0.68 | 0.698 | 0.674 |
+| Referable-DR (grade ≥ 2) specificity | 0.95 | 0.954 | **0.960** |
+| Grade-1 (Mild) recall | 0.08 | 0.03 | **0.111** |
+| Grade-1 (Mild) F1 | 0.09 | 0.04 | **0.112** |
 
-Per-class F1 (fine-tuned): 0 No-DR 0.92 · 1 Mild 0.04 · 2 Moderate 0.62 ·
-3 Severe 0.28 · 4 Proliferative 0.69.
+Per-class F1 (grade-1 boost run): 0 No-DR 0.91 · 1 Mild 0.11 · 2 Moderate 0.63 ·
+3 Severe 0.19 · 4 Proliferative 0.68.
 
 ![Confusion matrix, fine-tuned model, test split](docs/img/confusion_matrix_test.png)
+![Confusion matrix, grade-1-boosted model, test split](docs/img/confusion_matrix_test_grade1boost.png)
 
 QWK (quadratic-weighted Cohen's kappa) is the standard DR-grading metric — it
 penalizes errors by how far off the grade is. The **baseline** trains only the
@@ -34,7 +37,19 @@ accuracy, and referable-DR sensitivity — but **made grade-1 (Mild DR) worse**,
 not better: recall dropped from 0.08 to 0.03 (only ~10 of 398 mild-DR eyes
 correctly identified). The extra capacity appears to have gone toward the
 majority/moderate classes rather than resolving the subtle grade-0/grade-1
-boundary; see Limitations.
+boundary.
+
+**Targeted fix:** the same fine-tune with grade-1's class weight manually
+boosted ~4× beyond the "balanced" formula (`--boost-class 1 --boost-factor 4.0`,
+pushing it to ~5.0 — higher than every other class) nearly triples grade-1 F1
+over the unboosted fine-tune (0.04 → 0.112) and beats the baseline too
+(0.09 → 0.112), at a cost of 0.013 QWK and 0.024 referable-DR sensitivity versus
+the unboosted fine-tune. Training was unstable early (epoch 1 val QWK dropped
+to 0.52 as the model over-corrected toward grade-1 at everyone else's expense)
+before settling into this trade-off by epoch 5. None of the three models
+reaches the 0.80 QWK target; see Limitations for what a further attempt would
+need (oversampling, focal loss, or accepting the recall/QWK trade-off point
+that fits the intended use).
 
 ## Dataset
 
@@ -180,17 +195,21 @@ that is included here.
 - **No subgroup analysis.** Performance has not been broken out by camera
   type, patient demographics, or image quality. The reported metrics are
   pooled averages and could mask large disparities across subgroups.
-- **Grade 1 (Mild DR) is the model's weak point, and it did not improve with
-  more training capacity.** Per-class F1 for grade 1 is 0.09 (baseline,
-  frozen backbone) and 0.04 (fine-tuned, full backbone) vs. 0.60–0.92 for
-  every other grade; fine-tuning actually dropped grade-1 recall from 0.08 to
-  0.03 — see Results. The grade 0/1 boundary is a known-hard case in DR
-  grading generally (subtle microaneurysms, high inter-rater disagreement in
-  the literature), but that a full-backbone fine-tune made it *worse* points
-  to something more specific: likely label noise at this boundary in the
-  merged dataset, or the class-weighted loss and per-class support (only 399
-  val / 398 test grade-1 images) not being enough to counter how visually
-  similar grade 0/1 are. Not resolved in this project.
+- **Grade 1 (Mild DR) is the model's weak point.** F1 is 0.09 (baseline) →
+  0.04 (fine-tuned, capacity alone made it worse) → 0.11 (fine-tuned +
+  4× class-weight boost) vs. 0.63–0.91 for every other grade even in the best
+  case — see Results. A 4× manual weight boost roughly triples F1 back over
+  the unboosted fine-tune, at a real cost elsewhere (0.013 QWK, 0.024
+  referable-DR sensitivity), and the training dynamics were visibly unstable
+  getting there (epoch-1 val QWK cratered to 0.52 before settling by epoch 5).
+  The grade 0/1 boundary is a known-hard case in DR grading generally (subtle
+  microaneurysms, high inter-rater disagreement in the literature); that
+  capacity alone makes it worse while class weight alone only partially fixes
+  it suggests label noise at this specific boundary in the merged dataset, not
+  just a modeling shortfall. **Not fully resolved** — none of the three models
+  hits the 0.80 QWK target, and the honest choice is between the unboosted
+  fine-tune (higher QWK, worse at the class that matters most for early
+  intervention) and the boosted one (the reverse), not a clean win.
 - **Nonstandard split methodology.** `train` contains multiple offline-augmented
   copies per source image, and `data.py` de-leaks val/test against `train` and
   restricts them to original (un-augmented) images to keep metrics honest (see
