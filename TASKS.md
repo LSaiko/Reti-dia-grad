@@ -121,7 +121,8 @@ Status key: `[x]` done · `[~]` in progress · `[ ]` todo · `[?]` decision need
 
 - [x] `predict.py`: single image → grade + confidence + per-class probs + heatmap PNG
 - [x] End-to-end tested against `checkpoints_ft/best.pt` — correct grade, 0.972 confidence
-- [ ] Handle the no-checkpoint / bad-path cases with a clear error message (currently a raw traceback)
+- [x] Clean errors for missing checkpoint, missing image, and unreadable/corrupt image
+      (one-line message + exit 1, no raw traceback). Tested all 3 paths + happy path (0699019).
 - [?] Tiny CLI batch mode (`predict.py folder/`) — only if it's actually wanted
 
 ## 7. Documentation & regulatory framing
@@ -129,8 +130,8 @@ Status key: `[x]` done · `[~]` in progress · `[ ]` todo · `[?]` decision need
 - [x] README rewritten: real dataset (APTOS+EyePACS), de-leak + originals-only split method,
       MotW/Windows repro note, training details, results table filled in for both models
 - [x] Limitations section (7 points incl. grade-1 weakness and the Grad-CAM border finding)
-- [ ] Embed the confusion-matrix PNG and 2-3 Grad-CAM examples in the README itself (files
-      exist in `results/`, just not referenced as `![...]()` markdown images yet)
+- [x] Confusion matrix + one Grad-CAM overlay per grade embedded in README, committed to
+      `docs/img/` (not `results/`, which stays gitignored/regenerable) (0699019)
 - [ ] Add architecture/pipeline diagram (optional, portfolio polish)
 
 ## 8. Stretch (only if time / interest)
@@ -154,23 +155,21 @@ Protection is back on** — must be off again before any training run.
 
 ## Next tasks, in recommended order
 
+- [x] ~~Embed results in README~~ — confusion matrix + per-grade Grad-CAM gallery, `docs/img/` (0699019)
+- [x] ~~`predict.py` error handling~~ — clean one-line errors, tested (0699019)
+
 1. **[infra] Turn NordVPN Threat Protection off** before any training — one-time toggle,
-   needed before task 2 or 5 can run at a usable speed.
+   needed before task 2 or 3 can run at a usable speed.
 2. **[modeling, needs a GPU run] Targeted grade-1 fix** — this is the one thing actually
    blocking the 0.80 goal. Cheapest first: push grade-1's class weight higher than the
    "balanced" formula gives it (it's already the rarest-ish class but still gets
    out-voted), or switch to focal loss. ~2-3 hours with the new RAM headroom.
-3. **[polish, no GPU] Embed results in README** — `results/confusion_matrix_test.png` and
-   2-3 Grad-CAM overlays as inline `![]()` images instead of just files on disk. Quick.
-4. **[polish, no GPU] `predict.py` error handling** — friendly message instead of a raw
-   traceback for a missing checkpoint or bad image path.
-5. **[investigation, light GPU] Grad-CAM border finding** — retarget `GradCAM` at an
+3. **[investigation, light GPU] Grad-CAM border finding** — retarget `GradCAM` at an
    earlier, higher-resolution block and re-review the same 10 sample images; settle whether
    the border concentration is real model behavior or a resolution artifact.
-6. **[stretch, needs a GPU run] Ordinal-regression head** — only worth it if #2 doesn't move
+4. **[stretch, needs a GPU run] Ordinal-regression head** — only worth it if #2 doesn't move
    grade-1; softmax + class weighting may just be the wrong tool for this specific boundary.
-7. **[stretch] EyePACS-only external validation, TTA, ONNX export** — nice-to-haves for a
+5. **[stretch] EyePACS-only external validation, TTA, ONNX export** — nice-to-haves for a
    more complete portfolio story, not required for the core deliverable.
 
-Items 3 and 4 need no approval and no GPU — good candidates to knock out anytime. 2, 5, and
-6 need a training run each (2 is the one actually worth spending GPU time on).
+Everything left needs a GPU run (2 is the one actually worth spending it on).
