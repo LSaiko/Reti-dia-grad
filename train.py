@@ -70,6 +70,10 @@ def main():
     ap.add_argument("--no-amp", action="store_true", help="disable mixed precision (CUDA only)")
     ap.add_argument("--resume", default=None, help="checkpoint path, or 'auto' for <out>/last.pt")
     ap.add_argument("--out", default="checkpoints")
+    ap.add_argument("--boost-class", type=int, default=None,
+                    help="grade index to upweight beyond the balanced class weight (e.g. 1 for Mild DR)")
+    ap.add_argument("--boost-factor", type=float, default=1.0,
+                    help="multiplier applied to --boost-class's weight")
     args = ap.parse_args()
 
     seed_everything(args.seed)
@@ -82,7 +86,12 @@ def main():
     print(f"train {len(train_ds)}  val {len(val_ld.dataset)}  device {device}  amp {not args.no_amp}")
 
     model = build_model(num_classes=5, freeze=not args.no_freeze).to(device)
-    criterion = nn.CrossEntropyLoss(weight=class_weights(train_ds).to(device))
+    weights = class_weights(train_ds)
+    if args.boost_class is not None:
+        weights[args.boost_class] *= args.boost_factor
+        print(f"boosted class {args.boost_class} weight to {weights[args.boost_class]:.3f} "
+              f"(x{args.boost_factor})  full weights: {[round(w, 3) for w in weights.tolist()]}")
+    criterion = nn.CrossEntropyLoss(weight=weights.to(device))
 
     bb_lr = args.backbone_lr if args.backbone_lr is not None else args.lr
     head = [p for n, p in model.named_parameters() if p.requires_grad and "classifier" in n]
